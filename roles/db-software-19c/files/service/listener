@@ -1,0 +1,46 @@
+#!/bin/bash
+#
+ORATAB=/etc/oratab
+
+function help() {
+        echo "$(basename $0) -a [start/stop] -s [sid]"
+        exit
+}
+
+while getopts :a:s: OPT
+do
+        case $OPT in
+                a) OPERATION="$OPTARG"
+                ;;
+                s) DBNAME="$OPTARG"
+                ;;
+                *) help
+                ;;
+        esac
+done
+
+test -z $OPERATION && help
+test -z $DBNAME && help
+
+LINE=$(grep -E "^$DBNAME:.*:.*" "$ORATAB")
+if [ $? != 0 ]; then
+        echo "Could not locate $DBNAME in $ORATAB"
+        exit
+fi
+
+source /usr/local/bin/nnip_oraenv ${DBNAME}
+
+mkdir -p /mnt/oracle/admin/${ORACLE_SID}/log
+
+case "$OPERATION" in
+        start)
+                echo "Starting $ORACLE_SID listener."
+                lsnrctl start "LISTENER_${ORACLE_SID}" 1>/mnt/oracle/admin/${ORACLE_SID}/log/listener_start.log 2>&1
+                exit $?
+        ;;
+        stop)
+                echo "Stopping $ORACLE_SID listener."
+                lsnrctl stop "LISTENER_${ORACLE_SID}" 1>/mnt/oracle/admin/${ORACLE_SID}/log/listener_stop.log 2>&1
+                exit $?
+        ;;
+esac

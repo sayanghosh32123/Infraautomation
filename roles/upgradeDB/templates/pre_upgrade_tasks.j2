@@ -1,0 +1,38 @@
+set linesize 1000;
+spool {{ oracle_stage }}/pre_upgrade_tasks.log
+
+PROMP Create pfile from spfile
+create pfile='{{ oracle_stage }}/{{ db_name }}_pfile.ora' from spfile;
+
+PROMP Recompile any invalid objects
+@{{ oracle_home_old }}/rdbms/admin/utlrp.sql
+
+PROMP Dependencies on Network Utility Packages
+SELECT * FROM DBA_DEPENDENCIES
+WHERE referenced_name IN ('UTL_TCP','UTL_SMTP','UTL_MAIL','UTL_HTTP','UTL_
+INADDR','DBMS_LDAP')
+AND owner NOT IN ('SYS','PUBLIC','ORDPLUGINS');
+
+PROMP Database Links with Passwords from Earlier Releases
+SELECT 'CREATE '||DECODE(U.NAME,'PUBLIC','public ')||'DATABASE LINK '||CHR(10)
+||DECODE(U.NAME,'PUBLIC',Null, 'SYS','',U.NAME||'.')|| L.NAME||chr(10)
+||'CONNECT TO ' || L.USERID || ' IDENTIFIED BY "'||L.PASSWORD||'" USING
+'''||L.HOST||''''
+||chr(10)||';' TEXT
+FROM SYS.LINK$ L, SYS.USER$ U
+WHERE L.OWNER# = U.USER#;
+
+PROMP Databases Users with incompatible 10G passwords
+select USERNAME
+from DBA_USERS
+where ( PASSWORD_VERSIONS = '10G 'or PASSWORD_VERSIONS = '10G HTTP ')
+and USERNAME <> 'ANONYMOUS';
+
+PROMP Check SYS and System default tablespace
+SELECT username, default_tablespace FROM dba_users WHERE username in ('SYS','SYSTEM');
+
+PROMP Location of datafiles, redo logs and control files
+SELECT name FROM v$controlfile;
+SELECT file_name FROM dba_data_files;
+SELECT group#, member FROM v$logfile;
+

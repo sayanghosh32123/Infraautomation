@@ -1,0 +1,17 @@
+# /etc/systemd/system/dbora.service
+#   Oracle scripts to start/shutdown database defined in /etc/oratab
+#   and starts Listener
+
+[Unit]
+Description=Oracle Database and Listener
+Requires=network.target
+
+[Service]
+Type=forking
+Restart=no
+ExecStart=/opt/oracle/product/19300/bin/dbstart /opt/oracle/product/19300
+ExecStop=/opt/oracle/product/19300/bin/dbshut /opt/oracle/product/19300
+User=oracle
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+- name: reload service
+  command: systemctl daemon-reload
+  listen: enable_dbora_service
+
+- name: enable dbora service
+  service: name=dbora.service state=restarted enabled=yes
+  listen: enable_dbora_service

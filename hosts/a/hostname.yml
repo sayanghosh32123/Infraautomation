@@ -1,0 +1,19 @@
+# Create database (Y/N)
+create_database: Y
+db_name: <db_name>
+# Oracle RDBMS version
+oracle_version: 12201
+# Charset
+db_charset: AL32UTF8
+db_ncharset: AL16UTF16
+# nls_length_semantics (CHAR/BYTE)
+nls_length_semantics: CHAR
+# Redo log size in Mb
+redo_log_size: 500
+# Dataguard configuration
+dataguard_configuration: Y
+dataguard_stdb_host: <standby_dbname>
+## Non default disks
+db_storage_data_disk: /dev/sdb
+db_storage_acr_disk: /dev/sdc
+db_storage_sadf_disk: /dev/sdd

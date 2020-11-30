@@ -1,0 +1,102 @@
+#!/bin/bash
+
+ORATAB=/etc/oratab
+
+function help() {
+        echo "$(basename $0) -a [start/stop] -s [sid]"
+        exit
+}
+
+while getopts :a:s: OPT
+do
+        case $OPT in
+                a) OPERATION="$OPTARG"
+                ;;
+                s) DBNAME="$OPTARG"
+                ;;
+                *) help
+                ;;
+        esac
+done
+
+test -z $OPERATION && help
+test -z $DBNAME && help
+
+LINE=$(grep -E "^$DBNAME:.*:.*" "$ORATAB")
+if [ $? != 0 ]; then
+        echo "Could not locate $DBNAME in $ORATAB"
+        exit
+fi
+
+source /usr/local/bin/nnip_oraenv ${DBNAME}
+
+mkdir -p /mnt/oracle/admin/${ORACLE_SID}/log
+
+VERSION=$(sqlplus -V | grep -o -E '12|11|19')
+
+        case "${VERSION}" in
+                11)
+                        SQLCONN="/@${ORACLE_SID}_SYSDBA as sysdba"
+                ;;
+                12)
+                        SQLCONN="/@${ORACLE_SID}_SYSDBA as SYSDBA"
+                ;;
+		19)
+                        SQLCONN="/@${ORACLE_SID}_SYSDBA as SYSDBA"
+                ;;
+        esac
+
+
+
+case "$OPERATION" in
+        start)
+                echo "Starting $ORACLE_SID instance."
+sqlplus ${SQLCONN} 1> /mnt/oracle/admin/${ORACLE_SID}/log/db_start.log 2>&1 << EOF
+        startup mount;
+
+        declare
+          v_bum_active number := 0;
+          v_role varchar2(50);
+
+        begin
+          select count(1) into v_bum_active
+            from v\$backup
+          where STATUS = 'ACTIVE';
+
+          select DATABASE_ROLE into v_role
+            from v\$database;
+
+          if (v_bum_active > 0) then
+                execute immediate 'alter database end backup';
+          end if;
+
+          if (v_role = 'PRIMARY') then
+               execute immediate 'alter database open';
+          end if;
+        end;
+        /
+        select open_mode from v\$database;
+EOF
+        ;;
+        stop)
+                echo "Stopping $ORACLE_SID instance."
+sqlplus ${SQLCONN} 1>/mnt/oracle/admin/${ORACLE_SID}/log/db_stop.log 2>&1 << EOF
+        declare
+          v_mode varchar2(50);
+          v_bum_active number := 0;
+
+        begin
+          select count(1) into v_bum_active
+            from v\$backup
+          where STATUS = 'ACTIVE';
+
+          if (v_bum_active > 0) then
+                execute immediate 'alter database end backup';
+          end if;
+        end;
+        /
+        shutdown immediate;
+EOF
+        exit $?
+        ;;
+esac

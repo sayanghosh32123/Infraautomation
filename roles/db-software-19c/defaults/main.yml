@@ -1,0 +1,22 @@
+db_name: <db_name>
+software_source: "<source>"
+oracle_install_version: '19300'
+oracle_home: "/opt/oracle/product/{{ oracle_install_version }}"
+rdbms_installer_archive: "latest_rdbms_software_19c.zip"
+oracle_user: oracle
+oracle_install_group: oinstall
+oracle_dba_group: dba
+oracle_base: /opt/oracle/
+oracle_install_option: INSTALL_DB_SWONLY
+inventory_location: "/opt/oracle/oraInventory"
+oracle_edition: 'EE'
+db_tmp_install_dir: "{{ oracle_home }}/tmp"
+#
+# Patches
+psu_patch: "p30125133_190000_Linux-x86-64.zip"
+psu_patch_number: 30125133
+Repos_url: "https://srpadinf0243.mgt.insim.biz/oracle/"
+db_tmp_install_dir: "/mnt/oracle/data/{{ db_name }}/19C_patch_temp"
+
+
+

@@ -1,0 +1,28 @@
+#!/bin/bash
+ORATAB=/etc/oratab
+
+grep -vE "^#|^$|^agent" $ORATAB | while read line
+do
+   DBNAME=$(echo $line | cut -f1 -d':')
+   DBSTART=$(echo $line | cut -f3 -d':')
+
+   case "$DBSTART" in
+       y|Y)
+         echo "Stopping instance: $DBNAME"
+         /usr/local/bin/instance -a stop -s "$DBNAME" 1>/dev/null 2>&1
+         if [ $? -ne 0 ]; then
+            echo "Could not stop instance for $DBNAME"
+         fi
+         echo
+         echo "Stopping listener: listener_$DBNAME"
+         /usr/local/bin/listener -a stop -s "$DBNAME"
+         if [ $? -ne 0 ]; then
+            echo "Could not stop listener for $DBNAME"
+         fi
+         echo
+         ;;
+       *)
+         echo "Skipping instance: $DBNAME"
+         ;;
+   esac
+done

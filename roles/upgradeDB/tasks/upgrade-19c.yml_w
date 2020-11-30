@@ -1,0 +1,299 @@
+- name: Create upgrade stage directory
+  file:
+    path: "{{ oracle_stage }}"
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_install_group }}"
+    state: directory
+
+- name: Run preupgrade utility
+  shell: "{{ oracle_home }}/jdk/bin/java -jar preupgrade.jar TERMINAL TEXT"
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  environment: "{{ env_old }}"
+  register: preupgrade_output
+  tags: preupgrade
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- name: Print preupgrade utility output before continuing
+  debug: var=preupgrade_output.stdout_lines
+  tags: preupgrade
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+- pause:
+    prompt: Check preupgrade utility output to confirm no issues
+
+- name: Run preupgrade utility again
+  shell: "{{ oracle_home }}/jdk/bin/java -jar preupgrade.jar TERMINAL TEXT"
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  environment: "{{ env_old }}"
+  register: preupgrade_output
+  tags: preupgrade
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- name: Print preupgrade utility output before continuing
+  debug: var=preupgrade_output.stdout_lines
+  tags: preupgrade
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+- pause:
+    prompt: Check preupgrade utility output to confirm no issues
+
+	
+
+- name: Run preupgrade_fixups.sql
+  shell: echo exit | "{{ oracle_home_old }}/bin/sqlplus" / as sysdba @preupgrade_fixups.sql
+  args:
+    chdir: "{{ oracle_base }}/cfgtoollogs/{{ db_unique_name }}/preupgrade/"
+  register: fixups
+  environment: "{{ env_old }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+  
+- debug: var=fixups.stdout_lines
+
+- name: Copy fixups output to oracle_stage
+  copy: content="{{ fixups.stdout }}" dest="{{ oracle_stage }}/preupgrade_fixups.log"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  
+- pause:
+    prompt: Check preupgrade_fixups output before continuing
+
+
+- name: Template pre_upgrade_tasks.sql
+  template:
+    src: pre_upgrade_tasks.j2
+    dest: "{{ oracle_stage }}/pre_upgrade_tasks.sql"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  
+- name: Run pre_upgrade_tasks.sql
+  shell: echo exit | "{{ oracle_home_old }}/bin/sqlplus" / as sysdba @pre_upgrade_tasks.sql
+  args:
+    chdir: "{{ oracle_stage }}"
+  environment: "{{ env_old }}"
+  register: pre_upgrade_tasks_output
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+  
+  
+- debug: var=pre_upgrade_tasks_output.stdout_lines
+
+- pause:
+    prompt: Review output of pre_upgrade_tasks script before continuing
+
+- name: stop listener
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 1000
+  shell: |
+     source /usr/local/bin/nnip_oraenv {{ db_name }}
+     {{ oracle_home_old }}/bin/lsnrctl stop LISTENER_{{ db_name }}
+  environment: "{{ env_old }}"
+  
+- name: shutdown 12.2 database 
+  shell: echo "shutdown immediate;" | "{{ oracle_home_old }}/bin/sqlplus" / as sysdba
+  environment: "{{ env_old }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 1000
+
+
+- name: update oratab with new database home
+  lineinfile: "dest=/etc/oratab regexp='^{{ db_name }}' line='{{ db_name }}:{{ oracle_home }}:Y' state=present"
+  become: true
+  become_user: root
+
+
+- name: copy password file to new home
+  shell: "cp {{ oracle_home_old }}/dbs/orapw{{ db_name }} {{ oracle_home }}/dbs/"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+- name: copy spfile file to new home
+  shell: "cp {{ oracle_home_old }}/dbs/spfile{{ db_name }}.ora {{ oracle_home }}/dbs/"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+- name: start listener
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 1000
+  shell: |
+     source /usr/local/bin/nnip_oraenv {{ db_name }}
+	 sed -i 's/12201/19300/g' /mnt/oracle/admin/{{ db_name }}/tns/listener.ora
+     {{ oracle_home }}/bin/lsnrctl start LISTENER_{{ db_name }}  
+  environment: "{{ env }}" 
+	 
+- name: startup 19C DB in upgrade mode
+  shell: echo "startup upgrade;" | "{{ oracle_home }}/bin/sqlplus" / as sysdba
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+  
+- name: upgrade the new database from 12c to 19c 
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+  shell: |
+     source /usr/local/bin/nnip_oraenv {{ db_name }}
+     {{ oracle_home }}/bin/dbupgrade
+  environment: "{{ env }}"
+
+  
+- name: Startup the 19c upgraded Database
+  shell: echo "startup;" | "{{ oracle_home }}/bin/sqlplus" / as sysdba
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+  
+- name: Run postupgrade_fixups.sql
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @postupgrade_fixups.sql
+  args:
+    chdir: "{{ oracle_base }}/cfgtoollogs/{{ db_unique_name }}/preupgrade/"
+  register: postupgrade_fixups
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+- debug: var=postupgrade_fixups.stdout_lines
+
+
+- name: Recompile invalid objects
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @utlrp
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+
+
+- name: template post_upgrade_tasks.sql
+  template:
+    src: post_upgrade_tasks.j2
+    dest: "{{ oracle_stage }}/post_upgrade_tasks.sql"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+
+- name: run post_upgrade_tasks.sql
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @post_upgrade_tasks.sql
+  args:
+    chdir: "{{ oracle_stage }}"
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- name: Recompile invalid objects
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @utlrp
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- name: Upgrade status check (utlusts.sql)
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @utlusts
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  register: utlusts
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- debug: var=utlusts.stdout_lines
+
+- name: copy utlusts output to oracle_stage
+  copy: content="{{ utlusts.stdout }}" dest="{{ oracle_stage }}/utlusts.log"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+
+
+- name: upgrade timezone
+  include: upgrade_tzv.yml
+
+- name: Run catuppst.sql
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @catuppst
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  register: catuppst
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- debug: var=catuppst.stdout_lines
+
+- name: copy catuppst output to oracle_stage
+  copy: content="{{ catuppst.stdout }}" dest="{{ oracle_stage }}/catuppst.log"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+
+
+- name: Run postupgrade_fixups.sql
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @postupgrade_fixups.sql
+  args:
+    chdir: "{{ oracle_base }}/cfgtoollogs/{{ db_unique_name }}/preupgrade/"
+  register: postupgrade_fixups
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+
+- debug: var=postupgrade_fixups.stdout_lines
+
+
+- name: Recompile invalid objects
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @utlrp
+  args:
+    chdir: "{{ oracle_home }}/rdbms/admin"
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+

@@ -1,0 +1,39 @@
+#!/bin/bash
+
+ORATAB=/etc/oratab
+INPUTDB="${1}"
+QUIET=0
+
+function help {
+        echo "nnip_oraenv [sid]"
+        return
+}
+
+# Get database from oratab
+export ORACLE_SID="$(grep -E '^[DTAP]'  /etc/oratab | cut -d':' -f1|head -1)"
+
+# Input read
+if [ ! -z "${INPUTDB}" ]; then
+        export ORACLE_SID="${INPUTDB}"
+fi
+
+# Check if exists
+if ! grep -o "${ORACLE_SID}:" /etc/oratab > /dev/null 2>&1 ; then
+        echo "- Database not found"
+fi
+
+# Home path
+export ORACLE_HOME="$(grep "^${ORACLE_SID}:" /etc/oratab | cut -d':' -f2)"
+export ORACLE_BASE=/opt/oracle
+export ADR_BASE=/mnt/oracle/admin/${ORACLE_SID}
+export TNS_ADMIN="/mnt/oracle/admin/${ORACLE_SID}/tns"
+export PATH=$ORACLE_HOME/bin:$PATH
+export MAJOR_VERSION=$(echo ${ORACLE_HOME} | grep -o -E '11|12|19')
+export VERSION=$(echo ${ORACLE_HOME} | grep -o -E '11204|11203|12102|12201|19300')
+
+alias tns="cd $TNS_ADMIN"
+alias home="cd $ORACLE_HOME"
+alias sqlp="sqlplus /@${ORACLE_SID}_beq as sysdba"
+export PS1="[\u@\h $ORACLE_SID \W]\\$ "
+
+echo "Environment for $ORACLE_SID has been set."

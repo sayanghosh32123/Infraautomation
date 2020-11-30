@@ -1,0 +1,82 @@
+---
+# Install RDBMS software
+#
+- name: Create file for inventory location
+  copy:
+    src: etc/oraInst.loc
+    dest: /etc/oraInst.loc
+    owner: oracle
+    group: oinstall
+    mode: '0640'
+
+
+- name: Create temporary directory
+  file:
+    path: "{{ db_tmp_install_dir }}"
+    state: directory
+    mode: 0750
+    owner: oracle
+    group: oinstall
+
+
+- debug:
+      var: db_tmp_install_dir
+
+
+- name: Create ORACLE_HOME
+  file:
+    path: "{{ oracle_home }}"
+    state: directory
+    mode: 0750
+    owner: "{{ oracle_user }}"
+    group: "{{ oracle_install_group }}"
+
+
+#- name: Download installation file
+#  get_url: url="https://srpadinf0243.mgt.insim.biz/oracle/latest_rdbms_software_19c.zip" dest="/opt/oracle/product"  timeout=300
+
+- name: Download installation file
+  shell: cd "/opt/oracle/product"; wget "https://srpadinf0243.mgt.insim.biz/oracle/latest_rdbms_software_19c.zip";
+
+- name: Change permission of media file 
+  shell: |
+    mv /opt/oracle/product/latest_rdbms_software_19c.zip {{ oracle_home }}
+    chmod 775 {{ oracle_home }}/latest_rdbms_software_19c.zip
+    chown oracle:oinstall {{ oracle_home }}/latest_rdbms_software_19c.zip
+
+
+- name: unzip rdbms software
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 10800
+  action: shell unzip -oq {{ oracle_home }}/{{ rdbms_installer_archive }} -d {{ oracle_home }}
+
+
+
+
+- name: Install oracle rdbms software
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 10800
+  shell: |
+     "{{ oracle_home }}/runInstaller" \
+     -silent -ignorePrereq  -waitforcompletion -ignoreInternalDriverError \
+     oracle.install.option="{{ oracle_install_option }}" \
+     UNIX_GROUP_NAME="{{ oracle_install_group }}" \
+     ORACLE_HOME="{{ oracle_home }}" \
+     ORACLE_BASE="{{ oracle_base }}" \
+     oracle.install.db.InstallEdition="{{ oracle_edition }}" \
+     oracle.install.db.OSDBA_GROUP="{{ oracle_dba_group }}" \
+     oracle.install.db.OSOPER_GROUP="{{ oracle_dba_group }}" \
+     oracle.install.db.OSBACKUPDBA_GROUP="{{ oracle_dba_group }}" \
+     oracle.install.db.OSDGDBA_GROUP="{{ oracle_dba_group }}" \
+     oracle.install.db.OSKMDBA_GROUP="{{ oracle_dba_group }}" \
+     oracle.install.db.OSRACDBA_GROUP="{{ oracle_dba_group }}" \
+     SECURITY_UPDATES_VIA_MYORACLESUPPORT=false \                                
+     DECLINE_SECURITY_UPDATES=true
+
+- name: Execute root.sh
+  command: "{{ oracle_home }}/root.sh"
+

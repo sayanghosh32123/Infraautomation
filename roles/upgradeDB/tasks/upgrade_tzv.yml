@@ -1,0 +1,40 @@
+- name: Copy scripts to oracle_stage
+  copy:
+    src: "{{ item }}"
+    dest: "{{ oracle_stage }}"
+  with_items:
+    - upg_tzv_apply.sql
+    - upg_tzv_check.sql
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  
+- name: Run upg_tzv_check.sql
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @upg_tzv_check.sql
+  args:
+    chdir: "{{ oracle_stage }}"
+  register: tzv_check
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- debug: var=tzv_check
+
+- name: Run upg_tzv_apply.sql (
+  shell: echo exit | "{{ oracle_home }}/bin/sqlplus" / as sysdba @upg_tzv_apply.sql
+  args:
+    chdir: "{{ oracle_stage }}"
+  register: tzv_apply
+  environment: "{{ env }}"
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 99999
+
+- debug: var=tzv_apply
+
+- pause:
+    prompt: Check output of timezone upgrade before continuing
+

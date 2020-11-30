@@ -1,0 +1,41 @@
+software_source: "<source>"
+oracle_install_version: '19300'
+oracle_home: "/opt/oracle/product/{{ oracle_install_version }}"
+#oracle_home: "/mnt/oracle/arch/{{ oracle_install_version }}"
+rdbms_installer_archive: "latest_rdbms_software_19c.zip"
+#rdbms_tmp_install_dir_base: "/mnt/oracle/arch/{{ oracle_install_version }}"
+oracle_user: oracle
+oracle_install_group: oinstall
+oracle_dba_group: dba
+oracle_base: /opt/oracle
+oracle_install_option: INSTALL_DB_SWONLY
+inventory_location: "/opt/oracle/oraInventory"
+oracle_edition: 'EE'
+db_tmp_install_dir: "{{ oracle_home }}/tmp"
+db_name: <db_name>
+db_unique_name: <db_uni_name>
+tns_admin: "/mnt/oracle/admin/{{ db_name }}/tns"
+oracle_stage_base: /opt/oracle/ansible_stage
+
+oracle_stage: "{{ oracle_stage_base }}/{{ oracle_install_version }}_upgrade/{{ db_name }}"
+
+oracle_version: '19300'
+oracle_version_old: 12201
+oracle_home_old: "/opt/oracle/product/{{ oracle_version_old }}"
+
+env_old:
+  ORACLE_HOME: "{{ oracle_home_old }}"
+  ORACLE_BASE: "{{ oracle_base }}"
+  ORACLE_SID: "{{ db_name }}"
+  TNS_ADMIN: "{{ tns_admin }}"
+  PATH: "{{ oracle_home_old }}/bin:{{ oracle_home_old }}/OPatch:$PATH:/bin:/usr/bin::/usr/ccs/bin"
+
+
+
+env:
+  ORACLE_HOME: "{{ oracle_home }}"
+  ORACLE_BASE: "{{ oracle_base }}"
+  ORACLE_SID: "{{ db_name }}"
+  TNS_ADMIN: "{{ tns_admin }}"
+  PATH: "{{ oracle_home }}/bin:{{ oracle_home }}/OPatch:$PATH:/bin:/usr/bin::/usr/ccs/bin"
+

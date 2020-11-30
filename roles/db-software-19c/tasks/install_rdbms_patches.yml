@@ -1,0 +1,64 @@
+- name: Create temporary directory
+  file:
+    path: "{{ db_tmp_install_dir }}"
+    state: directory
+    mode: 0750
+    owner: oracle
+    group: oinstall
+
+
+- name: copy installation media files
+  get_url: url={{ Repos_url }}{{ item }} dest={{ db_tmp_install_dir }} mode=0644
+  with_items:
+   - p30125133_190000_Linux-x86-64.zip
+   - ocm.rsp
+
+
+- name: unzip  patch 
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 10800
+  action: shell unzip -oq {{ db_tmp_install_dir }}/{{psu_patch}} -d {{ db_tmp_install_dir }}
+
+
+- name:  patch conflict detection
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 10800
+  action: shell /usr/local/bin/nnip_oraenv {{ db_name }}; cd {{ db_tmp_install_dir }}/{{psu_patch_number}}; "{{ oracle_home }}/OPatch/opatch" prereq CheckConflictAgainstOHWithDetail -ph ./
+  register: conflict_detection
+  failed_when: "'Prereq \"checkConflictAgainstOHWithDetail\" passed.' not in conflict_detection.stdout"
+
+
+- name: patch apply
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 10800
+  environment:
+    _JAVA_OPTIONS: "-Djava.io.tmpdir=/opt/oracle/scripts"
+  action: shell /usr/local/bin/nnip_oraenv {{ db_name }};  cd {{ db_tmp_install_dir }}/{{ psu_patch_number }}; "{{ oracle_home }}/OPatch/opatch" apply -silent -ocmrf {{ db_tmp_install_dir }}/ocm.rsp
+  register: PSUpatch_apply
+  failed_when: "'Patch {{ psu_patch_number }} successfully applied.' not in PSUpatch_apply.stdout"
+
+
+
+
+- name:  patch check
+  become: yes
+  become_method: sudo
+  become_user: oracle
+  async: 10800
+  action: shell /usr/local/bin/nnip_oraenv {{ db_name }}; cd {{ db_tmp_install_dir }}/{{ psu_patch_number }}; "{{ oracle_home }}/OPatch/opatch" lsinv|grep {{ psu_patch_number }}
+  register: PSUpatch_check
+  failed_when: "'{{ psu_patch_number }}' not in PSUpatch_check.stdout"
+
+
+
+- name: clean up install directory
+  file: path={{ db_tmp_install_dir }} state=absent
+
+
+
