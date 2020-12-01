@@ -9,7 +9,7 @@ to upgrade 12.2.0.1 to 19c :
 ./play.sh upgradeDB <server name >
 
 
-Please contact me on +91 9830267788 for editing this playbbok as per your environment . 
+Please contact me on +91 9830267788 for editing this playbook as per your environment . 
 
 
 
